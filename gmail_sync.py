@@ -4,7 +4,7 @@ import datetime
 from email.utils import parsedate_to_datetime
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
+from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from googleapiclient.discovery import build
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -25,12 +25,16 @@ def get_redirect_uri():
 def get_auth_url():
     creds_dict = get_credentials_dict()
     flow = Flow.from_client_config(creds_dict, scopes=SCOPES, redirect_uri=get_redirect_uri())
-    auth_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    auth_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true'
+    )
     return auth_url, state
 
 def exchange_code(code, state):
     creds_dict = get_credentials_dict()
     flow = Flow.from_client_config(creds_dict, scopes=SCOPES, redirect_uri=get_redirect_uri())
+    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
     flow.fetch_token(code=code)
     creds = flow.credentials
     with open('token.json', 'w') as f:
