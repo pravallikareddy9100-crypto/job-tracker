@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+<h4 class="mb-3">My Job Applications</h4>
+
+<div class="mb-3">
+  <select id="period" class="form-select w-auto" onchange="filterPeriod()">
+    <option value="all">All time</option>
+    <option value="today">Today</option>
+    <option value="week">This week</option>
+    <option value="month">This month</option>
+  </select>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h2 class="text-primary" id="cnt-applied">{{ jobs|length }}</h2><p class="mb-0">Total Applied</p></div></div></div>
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h2 class="text-warning" id="cnt-interview">{{ jobs|selectattr('status','equalto','Interview')|list|length }}</h2><p class="mb-0">Interviews</p></div></div></div>
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h2 class="text-danger" id="cnt-rejected">{{ jobs|selectattr('status','equalto','Rejected')|list|length }}</h2><p class="mb-0">Rejections</p></div></div></div>
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h2 class="text-success" id="cnt-offer">{{ jobs|selectattr('status','equalto','Offer')|list|length }}</h2><p class="mb-0">Offers</p></div></div></div>
+</div>
+
+<table class="table table-bordered table-hover bg-white shadow-sm" id="jobs-table">
+    <thead class="table-dark">
+        <tr><th>Company</th><th>Role</th><th>Date Applied</th><th>Status</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+        {% for job in jobs %}
+        <tr data-date="{{ job.date_applied }}">
+            <td>{{ job.company }}</td>
+            <td>{{ job.role }}</td>
+            <td>{{ job.date_applied }}</td>
+            <td>
+                {% if job.status == 'Applied' %}<span class="badge bg-primary">Applied</span>
+                {% elif job.status == 'Interview' %}<span class="badge bg-warning text-dark">Interview</span>
+                {% elif job.status == 'Rejected' %}<span class="badge bg-danger">Rejected</span>
+                {% elif job.status == 'Offer' %}<span class="badge bg-success">Offer</span>
+                {% else %}<span class="badge bg-secondary">{{ job.status }}</span>{% endif %}
+            </td>
+            <td>{{ job.notes }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not jobs %}
+<p class="text-center text-muted">No applications yet. Click "+ Add Application" to start!</p>
+{% endif %}
+
+<script>
+function filterPeriod() {
+    const period = document.getElementById('period').value;
+    const today = new Date().toISOString().split('T')[0];
+    const weekAgo = new Date(Date.now() - 7*24*60*60*1000).toISOString().split('T')[0];
+    const monthStart = today.slice(0,7) + '-01';
+    const rows = document.querySelectorAll('#jobs-table tbody tr');
+    let applied=0, interview=0, rejected=0, offer=0;
+    rows.forEach(row => {
+        const date = row.dataset.date;
+        let show = true;
+        if (period === 'today') show = date === today;
+        else if (period === 'week') show = date >= weekAgo;
+        else if (period === 'month') show = date >= monthStart;
+        row.style.display = show ? '' : 'none';
+        if (show) {
+            const badge = row.querySelector('.badge');
+            if (badge) {
+                const s = badge.textContent.trim();
+                if (s === 'Applied') applied++;
+                else if (s === 'Interview') interview++;
+                else if (s === 'Rejected') rejected++;
+                else if (s === 'Offer') offer++;
+            }
+        }
+    });
+    document.getElementById('cnt-applied').textContent = applied+interview+rejected+offer;
+    document.getElementById('cnt-interview').textContent = interview;
+    document.getElementById('cnt-rejected').textContent = rejected;
+    document.getElementById('cnt-offer').textContent = offer;
+}
+</script>
+{% endblock %}
