@@ -32,14 +32,32 @@ def get_auth_url():
     return auth_url, state
 
 def exchange_code(code, state):
+    import requests
+    import json
     creds_dict = get_credentials_dict()
-    flow = Flow.from_client_config(creds_dict, scopes=SCOPES, redirect_uri=get_redirect_uri())
-    os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-    flow.fetch_token(code=code)
-    creds = flow.credentials
+    client_info = creds_dict.get('web', creds_dict.get('installed', {}))
+    
+    data = {
+        'code': code,
+        'client_id': client_info['client_id'],
+        'client_secret': client_info['client_secret'],
+        'redirect_uri': get_redirect_uri(),
+        'grant_type': 'authorization_code'
+    }
+    
+    response = requests.post('https://oauth2.googleapis.com/token', data=data)
+    token_data = response.json()
+    
     with open('token.json', 'w') as f:
-        f.write(creds.to_json())
-
+        import json
+        json.dump({
+            'token': token_data.get('access_token'),
+            'refresh_token': token_data.get('refresh_token'),
+            'token_uri': 'https://oauth2.googleapis.com/token',
+            'client_id': client_info['client_id'],
+            'client_secret': client_info['client_secret'],
+            'scopes': SCOPES
+        }, f)
 def get_gmail_service():
     creds = None
     token_json = os.environ.get('GOOGLE_TOKEN')
