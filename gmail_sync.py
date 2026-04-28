@@ -106,12 +106,12 @@ def sync_emails():
     # Scan inbox page by page
     page_token = None
     pages_scanned = 0
-    max_pages = 20  # scan up to 2000 emails
+    max_pages = 3  # scan up to 300 emails
 
     while pages_scanned < max_pages:
         params = {
             'userId': 'me',
-            'maxResults': 100,
+            'maxResults': 50,
             'labelIds': ['INBOX']
         }
         if page_token:
