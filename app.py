@@ -48,7 +48,27 @@ def add():
         conn.close()
         return redirect(url_for('index'))
     return render_template('add.html')
+@app.route('/gmail/connect')
+def gmail_connect():
+    from gmail_sync import get_auth_url
+    auth_url, state = get_auth_url()
+    session['oauth_state'] = state
+    return redirect(auth_url)
 
+@app.route('/gmail/callback')
+def gmail_callback():
+    from gmail_sync import exchange_code
+    code = request.args.get('code')
+    state = request.args.get('state')
+    if code:
+        exchange_code(code, state)
+    return redirect(url_for('index'))
+
+@app.route('/gmail/disconnect')
+def gmail_disconnect():
+    if os.path.exists('token.json'):
+        os.remove('token.json')
+    return redirect(url_for('index'))
 @app.route('/sync')
 def sync():
     import threading
