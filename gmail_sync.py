@@ -12,13 +12,22 @@ DATABASE = 'jobs.db'
 
 def get_gmail_service():
     creds = None
-    if os.path.exists('token.json'):
+    
+    # Try token from environment variable first (for Render)
+    token_json = os.environ.get('GOOGLE_TOKEN')
+    if token_json:
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write(token_json)
+            temp_token_path = f.name
+        creds = Credentials.from_authorized_user_file(temp_token_path, SCOPES)
+    elif os.path.exists('token.json'):
         creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            import json
             import tempfile
             creds_json = os.environ.get('GOOGLE_CREDENTIALS')
             if creds_json:
@@ -29,8 +38,10 @@ def get_gmail_service():
             else:
                 flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
             creds = flow.run_local_server(port=0)
-        with open('token.json', 'w') as token:
-            token.write(creds.to_json())
+        if os.path.exists('token.json'):
+            with open('token.json', 'w') as token:
+                token.write(creds.to_json())
+    
     return build('gmail', 'v1', credentials=creds)
 
 def detect_status(subject, snippet):
