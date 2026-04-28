@@ -1,11 +1,13 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, session
 import sqlite3
+import os
 
 app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
 DATABASE = 'jobs.db'
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -29,7 +31,8 @@ def index():
     conn = get_db()
     jobs = conn.execute('SELECT * FROM jobs ORDER BY date_applied DESC').fetchall()
     conn.close()
-    return render_template('index.html', jobs=jobs)
+    gmail_connected = os.path.exists('token.json') or os.environ.get('GOOGLE_TOKEN')
+    return render_template('index.html', jobs=jobs, gmail_connected=gmail_connected)
 
 @app.route('/add', methods=['GET', 'POST'])
 def add():
@@ -46,6 +49,28 @@ def add():
         conn.close()
         return redirect(url_for('index'))
     return render_template('add.html')
+
+@app.route('/gmail/connect')
+def gmail_connect():
+    from gmail_sync import get_auth_url
+    auth_url, state = get_auth_url()
+    session['oauth_state'] = state
+    return redirect(auth_url)
+
+@app.route('/gmail/callback')
+def gmail_callback():
+    from gmail_sync import exchange_code
+    code = request.args.get('code')
+    state = request.args.get('state')
+    if code:
+        exchange_code(code, state)
+    return redirect(url_for('index'))
+
+@app.route('/gmail/disconnect')
+def gmail_disconnect():
+    if os.path.exists('token.json'):
+        os.remove('token.json')
+    return redirect(url_for('index'))
 
 @app.route('/sync')
 def sync():
