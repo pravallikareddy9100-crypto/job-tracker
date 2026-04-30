@@ -49,7 +49,7 @@ def get_auth_url():
     conn.close()
     return auth_url, state
 
-ddef exchange_code(code, state=None):
+def exchange_code(code, state=None):
     import requests
     creds_dict = get_credentials_dict()
     client_info = creds_dict.get('web', creds_dict.get('installed', {}))
