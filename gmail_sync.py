@@ -1,17 +1,18 @@
 import os
 import sqlite3
 import datetime
+import json
+import tempfile
 from email.utils import parsedate_to_datetime
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow, InstalledAppFlow
+from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
 DATABASE = 'jobs.db'
 
 def get_credentials_dict():
-    import json
     creds_json = os.environ.get('GOOGLE_CREDENTIALS')
     if creds_json:
         return json.loads(creds_json)
@@ -25,15 +26,11 @@ def get_redirect_uri():
 def get_auth_url():
     creds_dict = get_credentials_dict()
     flow = Flow.from_client_config(creds_dict, scopes=SCOPES, redirect_uri=get_redirect_uri())
-    auth_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true'
-    )
+    auth_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
     return auth_url, state
 
 def exchange_code(code):
     import requests
-    import json
     creds_dict = get_credentials_dict()
     client_info = creds_dict.get('web', creds_dict.get('installed', {}))
     data = {
@@ -61,8 +58,6 @@ def exchange_code(code):
     return json.dumps(token_file)
 
 def get_gmail_service(token_json=None):
-    import json
-    import tempfile
     creds = None
     if token_json:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
@@ -104,15 +99,15 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
-def sync_emails():
-    service = get_gmail_service()
+def sync_emails(token_json=None):
+    service = get_gmail_service(token_json)
     conn = get_db()
     new_count = 0
     processed = set()
     existing = conn.execute("SELECT notes FROM jobs WHERE role='Via Email'").fetchall()
     for row in existing:
         if row['notes']:
-            parts = row['notes'].split(']')[0].replace('[','').strip()
+            parts = row['notes'].split(']')[0].replace('[', '').strip()
             processed.add(parts)
     page_token = None
     pages_scanned = 0
@@ -161,5 +156,3 @@ def sync_emails():
     conn.commit()
     conn.close()
     return new_count
-    def sync_emails(token_json=None):
-    service = get_gmail_service(token_json)
