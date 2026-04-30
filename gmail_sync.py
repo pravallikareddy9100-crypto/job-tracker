@@ -23,36 +23,36 @@ def get_redirect_uri():
     base = os.environ.get('RENDER_EXTERNAL_URL', 'http://localhost:5000')
     return f'{base}/gmail/callback'
 
+verifier_store = {}
+
 def get_auth_url():
     import secrets
     import hashlib
     import base64
     creds_dict = get_credentials_dict()
     flow = Flow.from_client_config(creds_dict, scopes=SCOPES, redirect_uri=get_redirect_uri())
-    
-    # Generate PKCE code verifier and challenge
     code_verifier = secrets.token_urlsafe(64)
     code_challenge = base64.urlsafe_b64encode(
         hashlib.sha256(code_verifier.encode()).digest()
     ).rstrip(b'=').decode()
-    
     auth_url, state = flow.authorization_url(
         access_type='offline',
         include_granted_scopes='true',
         code_challenge=code_challenge,
         code_challenge_method='S256'
     )
-    # Store verifier with state
-    verifier_store[state] = code_verifier
+    # Save verifier to database
+    conn = get_db()
+    conn.execute('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)',
+                 (f'verifier_{state}', code_verifier))
+    conn.commit()
+    conn.close()
     return auth_url, state
 
-verifier_store = {}
-
-def exchange_code(code, state=None):
+ddef exchange_code(code, state=None):
     import requests
     creds_dict = get_credentials_dict()
     client_info = creds_dict.get('web', creds_dict.get('installed', {}))
-    
     data = {
         'code': code,
         'client_id': client_info['client_id'],
@@ -60,18 +60,15 @@ def exchange_code(code, state=None):
         'redirect_uri': get_redirect_uri(),
         'grant_type': 'authorization_code'
     }
-    
-    # Add code verifier if we have it
-    if state and state in verifier_store:
-        data['code_verifier'] = verifier_store.pop(state)
-    
+    if state:
+        verifier = get_verifier(state)
+        if verifier:
+            data['code_verifier'] = verifier
     response = requests.post('https://oauth2.googleapis.com/token', data=data)
     token_data = response.json()
-    
     if 'access_token' not in token_data:
         print(f'Token error: {token_data}')
         return None
-    
     token_file = {
         'access_token': token_data.get('access_token'),
         'refresh_token': token_data.get('refresh_token'),
@@ -80,7 +77,9 @@ def exchange_code(code, state=None):
         'client_secret': client_info['client_secret'],
         'scopes': SCOPES,
         'universe_domain': 'googleapis.com',
-        'a
+        'account': ''
+    }
+    return json.dumps(token_file)
 
 def get_gmail_service(token_json=None):
     creds = None
