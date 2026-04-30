@@ -48,16 +48,19 @@ def exchange_code(code, state):
     response = requests.post('https://oauth2.googleapis.com/token', data=data)
     token_data = response.json()
     
+    token_file = {
+        'access_token': token_data.get('access_token'),
+        'refresh_token': token_data.get('refresh_token'),
+        'token_uri': 'https://oauth2.googleapis.com/token',
+        'client_id': client_info['client_id'],
+        'client_secret': client_info['client_secret'],
+        'scopes': SCOPES,
+        'universe_domain': 'googleapis.com',
+        'account': ''
+    }
+    
     with open('token.json', 'w') as f:
-        import json
-        json.dump({
-            'token': token_data.get('access_token'),
-            'refresh_token': token_data.get('refresh_token'),
-            'token_uri': 'https://oauth2.googleapis.com/token',
-            'client_id': client_info['client_id'],
-            'client_secret': client_info['client_secret'],
-            'scopes': SCOPES
-        }, f)
+        json.dump(token_file, f)
 def get_gmail_service():
     creds = None
     token_json = os.environ.get('GOOGLE_TOKEN')
