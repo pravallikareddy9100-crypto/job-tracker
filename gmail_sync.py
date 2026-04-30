@@ -24,15 +24,35 @@ def get_redirect_uri():
     return f'{base}/gmail/callback'
 
 def get_auth_url():
+    import secrets
+    import hashlib
+    import base64
     creds_dict = get_credentials_dict()
     flow = Flow.from_client_config(creds_dict, scopes=SCOPES, redirect_uri=get_redirect_uri())
-    auth_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
+    
+    # Generate PKCE code verifier and challenge
+    code_verifier = secrets.token_urlsafe(64)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b'=').decode()
+    
+    auth_url, state = flow.authorization_url(
+        access_type='offline',
+        include_granted_scopes='true',
+        code_challenge=code_challenge,
+        code_challenge_method='S256'
+    )
+    # Store verifier with state
+    verifier_store[state] = code_verifier
     return auth_url, state
 
-def exchange_code(code):
+verifier_store = {}
+
+def exchange_code(code, state=None):
     import requests
     creds_dict = get_credentials_dict()
     client_info = creds_dict.get('web', creds_dict.get('installed', {}))
+    
     data = {
         'code': code,
         'client_id': client_info['client_id'],
@@ -40,11 +60,18 @@ def exchange_code(code):
         'redirect_uri': get_redirect_uri(),
         'grant_type': 'authorization_code'
     }
+    
+    # Add code verifier if we have it
+    if state and state in verifier_store:
+        data['code_verifier'] = verifier_store.pop(state)
+    
     response = requests.post('https://oauth2.googleapis.com/token', data=data)
     token_data = response.json()
+    
     if 'access_token' not in token_data:
         print(f'Token error: {token_data}')
         return None
+    
     token_file = {
         'access_token': token_data.get('access_token'),
         'refresh_token': token_data.get('refresh_token'),
@@ -53,9 +80,7 @@ def exchange_code(code):
         'client_secret': client_info['client_secret'],
         'scopes': SCOPES,
         'universe_domain': 'googleapis.com',
-        'account': ''
-    }
-    return json.dumps(token_file)
+        'a
 
 def get_gmail_service(token_json=None):
     creds = None
