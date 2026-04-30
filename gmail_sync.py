@@ -31,12 +31,11 @@ def get_auth_url():
     )
     return auth_url, state
 
-def exchange_code(code, state):
+def exchange_code(code):
     import requests
     import json
     creds_dict = get_credentials_dict()
     client_info = creds_dict.get('web', creds_dict.get('installed', {}))
-    
     data = {
         'code': code,
         'client_id': client_info['client_id'],
@@ -44,10 +43,11 @@ def exchange_code(code, state):
         'redirect_uri': get_redirect_uri(),
         'grant_type': 'authorization_code'
     }
-    
     response = requests.post('https://oauth2.googleapis.com/token', data=data)
     token_data = response.json()
-    
+    if 'access_token' not in token_data:
+        print(f'Token error: {token_data}')
+        return None
     token_file = {
         'access_token': token_data.get('access_token'),
         'refresh_token': token_data.get('refresh_token'),
@@ -58,20 +58,19 @@ def exchange_code(code, state):
         'universe_domain': 'googleapis.com',
         'account': ''
     }
-    
-    with open('token.json', 'w') as f:
-        json.dump(token_file, f)
-def get_gmail_service():
+    return json.dumps(token_file)
+
+def get_gmail_service(token_json=None):
+    import json
+    import tempfile
     creds = None
-    token_json = os.environ.get('GOOGLE_TOKEN')
-    if os.path.exists('token.json'):
-        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
-    elif token_json:
-        import tempfile
+    if token_json:
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             f.write(token_json)
             temp_path = f.name
         creds = Credentials.from_authorized_user_file(temp_path, SCOPES)
+    elif os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
     if creds and creds.expired and creds.refresh_token:
         creds.refresh(Request())
     return build('gmail', 'v1', credentials=creds)
@@ -162,3 +161,5 @@ def sync_emails():
     conn.commit()
     conn.close()
     return new_count
+    def sync_emails(token_json=None):
+    service = get_gmail_service(token_json)
